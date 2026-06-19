@@ -465,35 +465,56 @@ jobs:
           if [[ "${{ github.event.inputs.droidspaces_enable }}" != "false" ]]; then
             echo "正在启用 Droidspaces 容器支持..."
             cd kernel_workspace/common
+
             # 应用 Droidspaces 容器必须补丁
-            wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_sysvipc_kabi_6_7_8.patch
-            patch -p1 -F 3 < fix_sysvipc_kabi_6_7_8.patch || true
-            # 修补 oplus_bsp_midas 行为，避免开机崩溃
-            wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/fix_oplus_bsp_midas.patch
-            patch -p1 -F 3 < fix_oplus_bsp_midas.patch || true
-            # 应用 NTSync 补丁
-            wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_base.patch
-            wget https://github.com/$GITHUB_REPOSITORY/raw/refs/heads/$GITHUB_REF_NAME/droidspaces_patch/ntsync_compat_${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch
-            patch -p1 -F 3 < ntsync_base.patch || true
-            patch -p1 -F 3 < ntsync_compat_${{ env.ANDROID_VERSION }}-${{ env.KERNEL_VERSION }}.patch || true
+            wget https://raw.githubusercontent.com/Goldzxcbug/Droidspaces_Kernel_patch/refs/heads/main/NTsync/ntsync_base.patch
+            wget https://raw.githubusercontent.com/Goldzxcbug/Droidspaces_Kernel_patch/refs/heads/main/NTsync/ntsync_compat_android15-6.6.patch
+            wget https://raw.githubusercontent.com/Goldzxcbug/Droidspaces_Kernel_patch/refs/heads/main/OKI/6.6/Kernel_6.6.patch
+            patch -p1 -N -F 3 < ntsync_base.patch || true
+            patch -p1 -N -F 3 < ntsync_compat_android15-6.6.patch || true
+            patch -p1 -N -F 3 < Kernel_6.6.patch || true
+
             # 开启 Droidspaces 容器所需内核支持
-            echo "CONFIG_PID_NS=y" >> ./arch/arm64/configs/gki_defconfig
-            echo "CONFIG_IPC_NS=y" >> ./arch/arm64/configs/gki_defconfig
-            echo "CONFIG_SYSVIPC=y" >> ./arch/arm64/configs/gki_defconfig
-            echo "CONFIG_DEVTMPFS=y" >> ./arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NAMESPACES=y" >> ./arch/arm64/configs/gki_defconfig
-            echo "CONFIG_POSIX_MQUEUE=y" >> ./arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y" >> ./arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NETFILTER_XT_TARGET_LOG=y" >> ./arch/arm64/configs/gki_defconfig
-            echo "CONFIG_NETFILTER_XT_MATCH_RECENT=y" >> ./arch/arm64/configs/gki_defconfig
-            # 未经测试的配置选项，可能导致bug
-            #echo "CONFIG_CGROUP_DEVICE=y" >> ./arch/arm64/configs/gki_defconfig
-            #echo "CONFIG_CGROUP_PIDS=y" >> ./arch/arm64/configs/gki_defconfig
-            #echo "CONFIG_FW_LOADER_COMPRESS=y" >> ./arch/arm64/configs/gki_defconfig
-            #echo "CONFIG_BRIDGE_NETFILTER=y" >> ./arch/arm64/configs/gki_defconfig
-            #echo "CONFIG_NF_TABLES=y" >> ./arch/arm64/configs/gki_defconfig
-            # 开启 NTSync
-            echo "CONFIG_NTSYNC=y" >> ./arch/arm64/configs/gki_defconfig
+
+            # 修复 [✗] PID namespace 和 [✗] IPC namespace
+            echo "CONFIG_SYSCTL=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_SYSVIPC=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_POSIX_MQUEUE=y" >> ./common/arch/arm64/configs/gki_defconfig
+
+            echo "CONFIG_NAMESPACES=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_PID_NS=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_IPC_NS=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_UTS_NS=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_USER_NS=y" >> ./common/arch/arm64/configs/gki_defconfig
+
+            # 修复 [✗] devtmpfs support
+            echo "CONFIG_DEVTMPFS=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_DEVTMPFS_MOUNT=y" >> ./common/arch/arm64/configs/gki_defconfig
+
+            # 修复 cgroup devices support
+            echo "CONFIG_CGROUPS=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_CGROUP_DEVICE=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_CGROUP_PIDS=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_MEMCG=y" >> ./common/arch/arm64/configs/gki_defconfig
+
+            # Droidspaecs 格外配置（可选）
+            # 网络（Docker/NAT支持）
+            echo "CONFIG_NETFILTER_XT_MATCH_ADDRTYPE=y" >> ./common/arch/arm64/configs/gki_defconfig
+
+            # UFW 支持
+            echo "CONFIG_NETFILTER_XT_TARGET_REJECT=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_NETFILTER_XT_TARGET_LOG=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_NETFILTER_XT_MATCH_RECENT=y" >> ./common/arch/arm64/configs/gki_defconfig
+
+            # Fail2ban 支持
+            echo "CONFIG_IP_SET=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_IP_SET_HASH_IP=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_IP_SET_HASH_NET=y" >> ./common/arch/arm64/configs/gki_defconfig
+            echo "CONFIG_NETFILTER_XT_SET=y" >> ./common/arch/arm64/configs/gki_defconfig
+
+            # NTsync 所要配置
+            echo "CONFIG_NTSYNC=y" >> ./common/arch/arm64/configs/gki_defconfig
+
             if [[ "${{ github.event.inputs.droidspaces_enable }}" == "extend" ]]; then
               echo "正在启用容器环境扩展支持..."
               # 开启虚拟 HCI 设备支持
